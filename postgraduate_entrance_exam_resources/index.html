@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>考研别再乱搜了 · 官方入口与免费资源导航</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', sans-serif;
+      background-color: #f9fafc;
+      color: #1e293b;
+      line-height: 1.6;
+      padding: 2rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    /* 头部 */
+    .header {
+      margin-bottom: 3rem;
+    }
+
+    .header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+      line-height: 1.2;
+      color: #0f172a;
+    }
+
+    .header .subhead {
+      font-size: 1.1rem;
+      color: #475569;
+      max-width: 720px;
+      border-left: 4px solid #3b82f6;
+      padding-left: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    .meta-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .meta-tags span {
+      background-color: #eef2f6;
+      color: #334155;
+      padding: 0.25rem 0.85rem;
+      border-radius: 20px;
+      letter-spacing: 0.01em;
+    }
+
+    /* 卡片通用 */
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0.65rem;
+    }
+
+    .section-title .number {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #3b82f6;
+      background: #eef2ff;
+      padding: 0.1rem 0.65rem;
+      border-radius: 6px;
+      line-height: 1.4;
+    }
+
+    .section-title h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #0f172a;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 1.5rem 1.75rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02), 0 0 0 1px #e9edf2 inset;
+      transition: box-shadow 0.15s ease;
+      margin-bottom: 1.5rem;
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 0 0 1px #d0d9e4 inset;
+    }
+
+    .card h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 500;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 0.2rem 0.6rem;
+      border-radius: 14px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .badge-warn {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .badge-muted {
+      background: #e9eef3;
+      color: #475569;
+    }
+
+    /* 表格样式 */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid #e9edf2;
+      background: #ffffff;
+      margin: 1rem 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      min-width: 600px;
+    }
+
+    th {
+      text-align: left;
+      background: #f8fafc;
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      padding: 0.9rem 1.2rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    td {
+      padding: 0.85rem 1.2rem;
+      border-bottom: 1px solid #eef2f6;
+      vertical-align: top;
+      color: #334155;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: #fafcff;
+    }
+
+    .url {
+      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-size: 0.85rem;
+      background: #f1f5f9;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      color: #0f172a;
+      word-break: break-all;
+      border: 1px solid #e2e8f0;
+      display: inline-block;
+      line-height: 1.4;
+    }
+
+    .tag-official {
+      display: inline-block;
+      background: #dcfce7;
+      color: #166534;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .tag-warn {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    /* 列表样式 */
+    .list-tight {
+      list-style: none;
+    }
+
+    .list-tight li {
+      padding: 0.65rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+
+    .list-tight li:last-child {
+      border-bottom: none;
+    }
+
+    .list-tight .bullet {
+      font-weight: 700;
+      color: #3b82f6;
+      flex-shrink: 0;
+      width: 1.2rem;
+      text-align: center;
+    }
+
+    .list-tight .content {
+      flex: 1;
+    }
+
+    .list-tight .content strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, #cbd5e1, transparent);
+      margin: 2.5rem 0;
+    }
+
+    /* 特殊标注 */
+    .note {
+      background: #f8fafc;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #334155;
+      margin: 1.25rem 0;
+    }
+
+    .note-amber {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    .note-red {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+
+    /* 网格布局 */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    .mini-card {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      border: 1px solid #eef2f6;
+    }
+
+    .mini-card h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: #0f172a;
+    }
+
+    .mini-card p {
+      font-size: 0.9rem;
+      color: #475569;
+    }
+
+    /* 页脚 */
+    .footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e2e8f0;
+      font-size: 0.85rem;
+      color: #64748b;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .footer a {
+      color: #3b82f6;
+      text-decoration: none;
+      border-bottom: 1px dotted #94a3b8;
+    }
+
+    .footer a:hover {
+      border-bottom-color: #3b82f6;
+    }
+
+    /* 响应式 */
+    @media (max-width: 640px) {
+      body {
+        padding: 1.25rem 0.75rem;
+      }
+
+      .header h1 {
+        font-size: 1.7rem;
+      }
+
+      .header .subhead {
+        font-size: 1rem;
+        padding-left: 0.9rem;
+      }
+
+      .section-title h2 {
+        font-size: 1.3rem;
+      }
+
+      .card {
+        padding: 1.1rem 1.1rem;
+      }
+
+      td, th {
+        padding: 0.7rem 0.8rem;
+        font-size: 0.85rem;
+      }
+
+      .url {
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 头部 -->
+  <header class="header">
+    <h1>考研别再乱搜了：<br>官方入口 + 免费权威资源导航</h1>
+    <div class="subhead">
+      把散在研招网、教育考试院、院校研究生院官网的报名入口、大纲出处、真题说明收进一张表。<br>
+      不含付费课程，不提供需要网盘保存的「资料包」。
+    </div>
+    <div class="meta-tags">
+      <span>官方源 · 可溯源</span>
+      <span>2027 考研季</span>
+      <span>CC BY 4.0</span>
+    </div>
+  </header>
+
+  <!-- 01 三个认知 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">01</span>
+      <h2>先纠正三个认知</h2>
+    </div>
+    <div class="card">
+      <ul class="list-tight">
+        <li>
+          <span class="bullet">①</span>
+          <div class="content"><strong>官方从不公开发布「成套真题」</strong> —— 统考公共课真题多由机构或出版社整理还原；自命题专业课绝大多数院校不公布标准答案。网上所有「历年真题 PDF」都来自考后回忆 + 机构交叉还原，挑真题的第一标准是来源，不是数量。</div>
+        </li>
+        <li>
+          <span class="bullet">②</span>
+          <div class="content"><strong>免费且权威的核心只有四样</strong> —— 考试大纲、招生简章（专业目录）、国家线/复试基本要求、研招网报名系统。只在官方渠道发布，免费、可下载、可长期保存。多数人低效的原因是没打开过大纲。</div>
+        </li>
+        <li>
+          <span class="bullet">③</span>
+          <div class="content"><strong>考研没有「全国统一资料站」</strong> —— 公共课看教育部教育考试院/研招网，专业课看目标院校研究生院官网。不存在一个网站能收齐所有专业的资料，这是考研信息搜集比考公更分散的根本原因。</div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 02 唯一官方入口 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">02</span>
+      <h2>唯一官方入口：研招网</h2>
+    </div>
+    <div class="card">
+      <p style="margin-bottom:0.75rem; font-size:1.05rem;"><strong>一句话记法：</strong>报名、调剂、查分、看国家线，全在 <span class="url">yz.chsi.com.cn</span>。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>用途</th><th>入口</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>全流程主站</td><td>中国研究生招生信息网 <span class="url">yz.chsi.com.cn</span></td></tr>
+            <tr><td>网上报名</td><td><span class="url">yz.chsi.com.cn/yzwb/</span></td></tr>
+            <tr><td>准考证下载</td><td>考前10天左右，登录研招网自行打印</td></tr>
+            <tr><td>国家线/调剂</td><td>研招网首页“国家线”“调剂服务系统”入口</td></tr>
+            <tr><td>招生单位/专业目录查询</td><td>研招网“硕士目录”栏目</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top:1rem;">
+        各省教育招生考试机构官网（如北京教育考试院、浙江省教育考试院）负责报考点公告和本地考场安排，但不替代研招网的报名功能。
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 时间线 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">03</span>
+      <h2>2027 考研时间线（已官宣）</h2>
+    </div>
+    <div class="card">
+      <p style="margin-bottom:0.75rem;">考研的全国统一节点比省考更刚性，以下来自教育部《2027年全国硕士研究生招生工作管理规定》。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>环节</th><th>2027年度（已确定）</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>预报名</td><td>2026年10月9日 — 10月12日</td></tr>
+            <tr><td>正式报名</td><td>2026年10月15日 — 10月24日，每日9:00—22:00</td></tr>
+            <tr><td>网上确认/材料上传</td><td>由各报考点自行公布，通常在10月底至11月上旬</td></tr>
+            <tr><td>准考证打印</td><td>考前10天左右（约12月中旬）</td></tr>
+            <tr><td>初试</td><td><strong>2026年12月19日 — 20日</strong></td></tr>
+            <tr><td>初试成绩</td><td>约2027年2月</td></tr>
+            <tr><td>国家线</td><td>通常在成绩公布后、3月前后</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:0.75rem; font-size:0.9rem; color:#475569;">初试科目顺序固定：19日上午政治/管综，下午外国语；20日上午业务课一/专业基础综合，下午业务课二。</p>
+    </div>
+  </section>
+
+  <!-- 04 考什么·大纲 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">04</span>
+      <h2>考什么：大纲是唯一范围边界</h2>
+    </div>
+    <div class="card">
+      <p style="margin-bottom:0.75rem;">考研公共课大纲由<strong>教育部教育考试院</strong>编写，<strong>高等教育出版社</strong>出版，是所有辅导书的“编写源头”。任何机构的讲义、课程，如果与大纲范围冲突，以大纲为准。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>科目</th><th>大纲特征</th><th>获取方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>政治（101）</td><td>每年变动相对最大，需用当年新版</td><td>高教社出版，研招网/高教社天猫店</td></tr>
+            <tr><td>英语一（201）/英语二（204）</td><td>结构稳定，词汇和题型要求以大纲为准</td><td>同上</td></tr>
+            <tr><td>数学一/二/三（301/302/303）</td><td>2027版含最新两年试题及参考答案</td><td>同上</td></tr>
+            <tr><td>管理类综合（199）等</td><td>报管综类专硕的考生用</td><td>同上</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note note-amber" style="margin-top:1rem;">
+        <strong>专业课大纲</strong>由各招生单位自行发布，在目标院校研究生院官网“招生-硕士-考试大纲”栏目查找。部分院校（尤其理工科）只给参考书目不划范围，需要结合真题反推重点。
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 免费权威资源 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">05</span>
+      <h2>免费的权威资源（按权威性排序）</h2>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>层级</th><th>资源</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="tag-official">官方</span></td><td>考试大纲（公共课+专业课）</td><td>复习范围的最高依据，免费或极低成本获取</td></tr>
+            <tr><td><span class="tag-official">官方</span></td><td>招生简章/专业目录</td><td>在研招网或院校官网查，看清报考条件、考试科目、招生人数</td></tr>
+            <tr><td><span class="tag-official">官方</span></td><td>国家线/院校复试线</td><td>研招网公布国家线，院校官网公布院线，用于定目标和判断调剂可能</td></tr>
+            <tr><td><span class="tag-official">官方</span></td><td>研招网在线咨询/院校开放日</td><td>部分院校在报名前有在线答疑，可直接问招生办</td></tr>
+            <tr><td><span class="tag-official">出版</span></td><td>高教社大纲配套试题</td><td>数学大纲附最新两年真题及答案，是少数“官方出版物里有真题”的例外</td></tr>
+            <tr><td><span class="tag-official" style="background:#e2e8f0; color:#334155;">公共</span></td><td>B站免费经验/课程</td><td>用于方法参考和基础学习，但<strong>不能替代大纲</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top:1rem;">
+        <strong>判断标准：</strong>一份资料如果找不到发布者、没有出版信息、链接必须存网盘才能看，它就不该占据你的核心复习时间。真正该反复翻的，是大纲、简章和真题（哪怕是回忆版）。
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 避坑清单 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">06</span>
+      <h2>避坑清单</h2>
+    </div>
+    <div class="grid-2">
+      <div class="mini-card">
+        <h4>❌ 把研招网当“唯一信息源”</h4>
+        <p>研招网管报名和调剂，但<strong>专业课考什么、参考书哪几本，只在目标院校官网</strong>。只刷研招网会漏掉最关键的专业课信息。</p>
+      </div>
+      <div class="mini-card">
+        <h4>❌ 去找“官方专业课真题”</h4>
+        <p>绝大多数院校不公布。能买到的“真题”基本是上岸者回忆版或机构整理，<strong>没有官方标准答案</strong>。用它练手可以，用它逐字对答案较真没必要。</p>
+      </div>
+      <div class="mini-card">
+        <h4>❌ 不看大纲就买全套课</h4>
+        <p>公共课大纲几十页，翻一遍就能知道题型和范围。先看大纲再决定买什么课，能避免为“超纲内容”付费。</p>
+      </div>
+      <div class="mini-card">
+        <h4>❌ 报名拖到最后一天</h4>
+        <p>和考公一样，报考点有人数上限，审核不通过时可能没有时间改报。研招网报名期间可修改信息，但报考点满员后无法支付。</p>
+      </div>
+      <div class="mini-card">
+        <h4>❌ 信“永久有效的网盘资料包”</h4>
+        <p>考研大纲每年微调，政治尤其明显。用旧版资料复习政治，可能背了已删除的考点、漏了新增内容。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 备考节奏 -->
+  <section class="section">
+    <div class="section-title">
+      <span class="number">07</span>
+      <h2>备考节奏（对准 2027 考研）</h2>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>阶段</th><th>时间</th><th>做什么</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>打基础</td><td>现在 — 2026年8月</td><td>公共课按上一版大纲框架学（英语词汇、数学基础、政治马原史纲），专业课通读参考书</td></tr>
+            <tr><td>大纲发布</td><td>2026年9月</td><td>高教社出版当年大纲，<strong>逐项对比变化</strong>，调整复习重点</td></tr>
+            <tr><td>报名定校</td><td>2026年10月</td><td>研招网报名，同时确认目标院校专业目录是否有变（缩招/换科目）</td></tr>
+            <tr><td>冲刺</td><td>2026年11—12月</td><td>按套掐时间做真题，政治主观题背诵，专业课默写框架</td></tr>
+            <tr><td>查分/复试/调剂</td><td>2027年2—4月</td><td>研招网查分，关注国家线；过线后准备复试或调剂</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <div>本页只收录可溯源到 <strong>研招网、教育部教育考试院、高教社、各院校研究生院官网</strong> 的公开信息。<br>不提供需要网盘保存的资料包，不推荐任何付费课程。</div>
+    <div style="font-size:0.8rem;">CC BY 4.0 · 更新节奏：每季度复核</div>
+  </footer>
+
+</div>
+</body>
+</html>
