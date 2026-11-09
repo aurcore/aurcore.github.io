@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高德地图 - 路段绘制、编辑、导入导出与地理编码</title>
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+        #container { height: 100%; width: 100%; }
+        .panel {
+            position: absolute; top: 20px; right: 20px; width: 340px;
+            background: white; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;
+            max-height: 90vh; overflow-y: auto;
+        }
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 15px; cursor: pointer; user-select: none;
+            border-bottom: 1px solid #eee;
+        }
+        .panel-header h3 { margin: 0; font-size: 16px; }
+        .panel-toggle {
+            background: none; color: #666; font-size: 16px; padding: 0 6px;
+            cursor: pointer; transition: transform 0.2s; border: none;
+        }
+        .panel-toggle:hover { color: #1e88e5; }
+        .panel-body { padding: 15px; }
+        .panel.collapsed .panel-body { display: none; }
+        .panel.collapsed .panel-toggle { transform: rotate(-90deg); }
+        .panel.collapsed { max-height: none; overflow: visible; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 12px; color: #666; margin-bottom: 3px; }
+        .form-group input { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        .form-group input[readonly] { background: #f5f5f5; color: #333; cursor: not-allowed; }
+        .unit-hint { font-size: 11px; color: #999; margin-left: 4px; }
+        .btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        button {
+            padding: 8px 12px; cursor: pointer; border: none; border-radius: 4px;
+            background: #1e88e5; color: white; font-size: 14px;
+        }
+        button.secondary { background: #6c757d; }
+        button.danger { background: #dc3545; }
+        button.success { background: #2e7d32; }
+        button.warning { background: #ef6c00; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .info-text { font-size: 12px; color: #888; margin-top: 10px; }
+        #progressContainer { display: none; margin-top: 10px; }
+        .progress-bg { background: #eee; border-radius: 4px; height: 10px; overflow: hidden; }
+        #progressBar { width: 0%; height: 100%; background: #1e88e5; transition: width 0.2s; }
+        #progressText { font-size: 11px; color: #666; margin-top: 4px; }
+    </style>
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: '73d7f93370c36afe4f8b111a98f929c0',
+        };
+    </script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=5a46888a5d15366d4f7c82c0dd566317&plugin=AMap.PolylineEditor,AMap.GeometryUtil,AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete"></script>
+    <!-- SheetJS：优先 bootcdn，失败自动回退 jsDelivr -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // 如果 bootcdn 加载失败，动态插入 jsDelivr 备用
+        if (typeof XLSX === 'undefined') {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+            document.head.appendChild(s);
+        }
+    </script>
+</head>
+<body>
+<div id="container"></div>
+
+<div class="panel" id="sidePanel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h3>路段管理</h3>
+        <button class="panel-toggle" id="btnPanelToggle" title="收起/展开面板">▾</button>
+    </div>
+    <div class="panel-body">
+
+    <!-- 道路搜索 -->
+    <div class="search-box" style="margin-bottom: 15px;">
+        <div style="display: flex; gap: 6px;">
+            <input type="text" id="searchInput" placeholder="输入道路名称搜索..."
+                   style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                   onkeydown="if(event.key==='Enter') searchRoad()">
+            <button onclick="searchRoad()">搜索</button>
+            <button class="secondary" onclick="clearSearch()" id="btnClearSearch" style="display: none;">清除</button>
+        </div>
+        <div id="searchResultInfo" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
+    </div>
+
+    <div class="btn-group">
+        <button id="btnDraw" onclick="startDraw()">开始绘制路段</button>
+        <button id="btnFinish" class="warning" onclick="finishDraw()" disabled>完成绘制</button>
+        <button id="btnCancel" class="secondary" onclick="cancelDraw()" disabled>取消</button>
+    </div>
+    <div class="btn-group">
+        <button id="btnEditShape" class="secondary" onclick="toggleEditShape()" disabled>编辑形状</button>
+        <button id="btnDeselect" class="secondary" onclick="deselectPolyline()" disabled>取消选中</button>
+        <button id="btnDelete" class="danger" onclick="deleteSelected()" disabled>删除选中</button>
+        <button id="btnToggleLabel" class="secondary" onclick="toggleLabels()">隐藏标签</button>
+    </div>
+    <div class="btn-group">
+        <button class="success" onclick="triggerImport()">导入 GeoJSON</button>
+        <!-- <button class="success" id="btnImportTable" onclick="triggerTableImport()">导入 Excel/CSV</button> -->
+        <button onclick="exportGeoJSON()">导出 GeoJSON</button>
+        <input type="file" id="fileInput" accept=".geojson,.json,application/geo+json,application/json"
+               style="display: none;" onchange="importGeoJSON(event)">
+        <input type="file" id="tableFileInput" accept=".xlsx,.xls,.csv"
+               style="display: none;" onchange="importTable(event)">
+    </div>
+
+    <div id="formArea" style="display: none;">
+        <h4>编辑属性</h4>
+        <div class="form-group">
+            <label>序号（路段编号）</label>
+            <input type="text" id="inputRoadId" oninput="updateProperty('roadId', this.value)">
+        </div>
+        <div class="form-group">
+            <label>城区</label>
+            <input type="text" id="inputDistrict" oninput="updateProperty('district', this.value)">
+        </div>
+        <div class="form-group">
+            <label>道路名称</label>
+            <input type="text" id="inputRoadName" oninput="updateProperty('roadName', this.value)">
+        </div>
+        <div class="form-group">
+            <label>起点</label>
+            <input type="text" id="inputStartLoc" oninput="updateProperty('startLoc', this.value)">
+        </div>
+        <div class="form-group">
+            <label>终点</label>
+            <input type="text" id="inputEndLoc" oninput="updateProperty('endLoc', this.value)">
+        </div>
+        <div class="form-group">
+            <label>道路等级</label>
+            <input type="text" id="inputRoadLevel" oninput="updateProperty('roadLevel', this.value)">
+        </div>
+        <div class="form-group">
+            <label>里程 <span class="unit-hint">(米，表格导入时优先采用原始里程)</span></label>
+            <input type="text" id="inputLength" readonly>
+        </div>
+    </div>
+
+    <div id="progressContainer">
+        <div class="progress-bg"><div id="progressBar"></div></div>
+        <div id="progressText">0%</div>
+    </div>
+
+    <div class="info-text" id="infoText">点击“开始绘制路段”后，单击地图添加节点（实时显示）；双击或点“完成绘制”结束。</div>
+    </div>
+</div>
+
+<script>
+    // ================= 初始化地图与地理编码器 =================
+    const map = new AMap.Map('container', {
+        zoom: 12,
+        center: [116.397428, 39.90923],
+        mapStyle: 'amap://styles/whitesmoke',
+        viewMode: '2D'
+    });
+
+    let geocoder = null;
+    AMap.plugin('AMap.Geocoder', () => {
+        geocoder = new AMap.Geocoder({ city: '全国' });
+    });
+
+    // 道路搜索服务
+    let placeSearch = null;
+    AMap.plugin('AMap.PlaceSearch', () => {
+        placeSearch = new AMap.PlaceSearch({
+            city: '全国',
+            pageSize: 20,
+            pageIndex: 1,
+            extensions: 'base'
+        });
+    });
+
+    // ================= 全局状态 =================
+    let allPolylines = [];
+    let selectedPolyline = null;
+    let currentEditor = null;
+    let isDrawing = false;
+    let isImporting = false;
+    let showLabels = true;
+    const labelMap = new Map();
+
+    let tempPath = [];
+    let tempPolyline = null;
+    let previewPolyline = null;
+    let drawMarkers = [];
+
+    // 搜索相关
+    let searchMarkers = [];
+    let searchInfoWindow = null;
+
+    // ================= 标签相关 =================
+    function getMidPoint(path) {
+        if (!path || path.length === 0) return null;
+        if (path.length === 1) return path[0];
+        if (path.length === 2) {
+            return new AMap.LngLat(
+                (path[0].getLng() + path[1].getLng()) / 2,
+                (path[0].getLat() + path[1].getLat()) / 2
+            );
+        }
+        return path[Math.floor(path.length / 2)];
+    }
+
+    function buildLabelText(ext) {
+        const name = ext.roadName || '';
+        const id = ext.roadId || '';
+        if (name && id) return `${name} (${id})`;
+        if (name) return name;
+        if (id) return id;
+        return '未命名路段';
+    }
+
+    function createOrUpdateLabel(polyline) {
+        const path = polyline.getPath();
+        const midPoint = getMidPoint(path);
+        if (!midPoint) return;
+        const ext = polyline.getExtData() || {};
+        const labelText = buildLabelText(ext);
+
+        let text = labelMap.get(polyline);
+        if (!text) {
+            text = new AMap.Text({
+                text: labelText,
+                position: midPoint,
+                offset: new AMap.Pixel(0, 0),
+                style: {
+                    'background-color': 'white',
+                    'border': '1px solid #1e88e5',
+                    'border-radius': '4px',
+                    'padding': '2px 6px',
+                    'font-size': '12px',
+                    'color': '#333',
+                    'white-space': 'nowrap',
+                    'box-shadow': '0 1px 3px rgba(0,0,0,0.2)'
+                },
+                zIndex: 150
+            });
+            map.add(text);
+            labelMap.set(polyline, text);
+            if (!showLabels) text.hide();
+        } else {
+            text.setText(labelText);
+            text.setPosition(midPoint);
+            if (showLabels) text.show();
+            else text.hide();
+        }
+    }
+
+    function removeLabel(polyline) {
+        const text = labelMap.get(polyline);
+        if (text) {
+            map.remove(text);
+            labelMap.delete(polyline);
+        }
+    }
+
+    function toggleLabels() {
+        showLabels = !showLabels;
+        labelMap.forEach(text => {
+            if (showLabels) text.show();
+            else text.hide();
+        });
+        document.getElementById('btnToggleLabel').textContent = showLabels ? '隐藏标签' : '显示标签';
+    }
+
+    // ================= 面板折叠 / 展开 =================
+    function togglePanel() {
+        const panel = document.getElementById('sidePanel');
+        panel.classList.toggle('collapsed');
+    }
+
+    // ================= 自动计算长度 =================
+    function calculateAndSetLength(polyline) {
+        const path = polyline.getPath();
+        if (!path || path.length < 2) {
+            const ext = polyline.getExtData() || {};
+            ext.length = '0';
+            polyline.setExtData(ext);
+            if (selectedPolyline === polyline) document.getElementById('inputLength').value = '0';
+            return 0;
+        }
+        const distance = AMap.GeometryUtil.distanceOfLine(path);
+        const lengthStr = distance.toFixed(2);
+        const ext = polyline.getExtData() || {};
+        ext.length = lengthStr;
+        polyline.setExtData(ext);
+        if (selectedPolyline === polyline) document.getElementById('inputLength').value = lengthStr;
+        return distance;
+    }
+
+    // ================= 实时绘制 =================
+    function startDraw() {
+        if (isImporting) return;
+        closeCurrentEditor();
+        deselectPolyline();
+
+        isDrawing = true;
+        tempPath = [];
+        drawMarkers.forEach(m => map.remove(m));
+        drawMarkers = [];
+
+        tempPolyline = new AMap.Polyline({
+            path: [], strokeColor: '#ff6f00', strokeWeight: 5,
+            strokeStyle: 'dashed', lineJoin: 'round', zIndex: 200
+        });
+        map.add(tempPolyline);
+
+        previewPolyline = new AMap.Polyline({
+            path: [], strokeColor: '#ff6f00', strokeWeight: 3,
+            strokeStyle: 'dashed', strokeOpacity: 0.5, zIndex: 199
+        });
+        map.add(previewPolyline);
+
+        document.getElementById('btnDraw').disabled = true;
+        document.getElementById('btnFinish').disabled = false;
+        document.getElementById('btnCancel').disabled = false;
+        document.getElementById('btnImportTable').disabled = true;
+        document.getElementById('infoText').textContent = '绘制中：单击地图添加节点（实时显示），双击或点“完成绘制”结束。';
+
+        map.on('click', onMapClickDraw);
+        map.on('dblclick', onMapDblClickFinish);
+        map.on('mousemove', onMapMouseMove);
+    }
+
+    function onMapClickDraw(e) {
+        if (!isDrawing) return;
+        tempPath.push(e.lnglat);
+        tempPolyline.setPath(tempPath);
+
+        const marker = new AMap.CircleMarker({
+            center: e.lnglat, radius: 5, fillColor: '#ff6f00',
+            fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2,
+            zIndex: 300, bubble: true
+        });
+        map.add(marker);
+        drawMarkers.push(marker);
+        previewPolyline.setPath([]);
+    }
+
+    function onMapMouseMove(e) {
+        if (!isDrawing || tempPath.length === 0) return;
+        const lastPoint = tempPath[tempPath.length - 1];
+        previewPolyline.setPath([lastPoint, e.lnglat]);
+    }
+
+    function onMapDblClickFinish(e) {
+        if (!isDrawing) return;
+        e.originEvent?.stopPropagation?.();
+        if (tempPath.length > 1) {
+            const last = tempPath[tempPath.length - 1];
+            const prev = tempPath[tempPath.length - 2];
+            const dist = AMap.GeometryUtil.distance(last, prev);
+            if (dist < 2) {
+                tempPath.pop();
+                const lastMarker = drawMarkers.pop();
+                if (lastMarker) map.remove(lastMarker);
+                tempPolyline.setPath(tempPath);
+            }
+        }
+        finishDraw();
+    }
+
+    function finishDraw() {
+        if (!isDrawing) return;
+        cleanupDrawListeners();
+
+        if (tempPath.length < 2) {
+            alert('至少需要两个节点才能构成路段。');
+            cancelDraw();
+            return;
+        }
+
+        const polyline = new AMap.Polyline({
+            path: [...tempPath],
+            strokeColor: '#1e88e5', strokeWeight: 6, lineJoin: 'round',
+            extData: {
+                roadId: '', district: '', roadName: '',
+                startLoc: '', endLoc: '', roadLevel: '', length: ''
+            }
+        });
+        polyline.on('click', ev => { ev.originEvent?.stopPropagation?.(); selectPolyline(polyline); });
+        map.add(polyline);
+        allPolylines.push(polyline);
+        calculateAndSetLength(polyline);
+        createOrUpdateLabel(polyline);
+
+        if (tempPolyline) { map.remove(tempPolyline); tempPolyline = null; }
+        if (previewPolyline) { map.remove(previewPolyline); previewPolyline = null; }
+        drawMarkers.forEach(m => map.remove(m));
+        drawMarkers = [];
+        tempPath = [];
+
+        isDrawing = false;
+        document.getElementById('btnDraw').disabled = false;
+        document.getElementById('btnFinish').disabled = true;
+        document.getElementById('btnCancel').disabled = true;
+        document.getElementById('btnImportTable').disabled = false;
+        document.getElementById('infoText').textContent = '绘制完成。点击路段可选中并编辑属性。';
+
+        selectPolyline(polyline);
+    }
+
+    function cancelDraw() {
+        if (!isDrawing) return;
+        cleanupDrawListeners();
+        if (tempPolyline) { map.remove(tempPolyline); tempPolyline = null; }
+        if (previewPolyline) { map.remove(previewPolyline); previewPolyline = null; }
+        drawMarkers.forEach(m => map.remove(m));
+        drawMarkers = [];
+        tempPath = [];
+        isDrawing = false;
+        document.getElementById('btnDraw').disabled = false;
+        document.getElementById('btnFinish').disabled = true;
+        document.getElementById('btnCancel').disabled = true;
+        document.getElementById('btnImportTable').disabled = false;
+        document.getElementById('infoText').textContent = '绘制已取消。';
+    }
+
+    function cleanupDrawListeners() {
+        map.off('click', onMapClickDraw);
+        map.off('dblclick', onMapDblClickFinish);
+        map.off('mousemove', onMapMouseMove);
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && isDrawing) cancelDraw();
+    });
+
+    // ================= 选中 / 取消选中 =================
+    function selectPolyline(polyline) {
+        if (selectedPolyline && selectedPolyline !== polyline) {
+            selectedPolyline.setOptions({ strokeColor: '#1e88e5', strokeWeight: 6 });
+        }
+        selectedPolyline = polyline;
+        polyline.setOptions({ strokeColor: '#ff6f00', strokeWeight: 8 });
+
+        document.getElementById('formArea').style.display = 'block';
+        const ext = polyline.getExtData() || {};
+        document.getElementById('inputRoadId').value = ext.roadId || '';
+        document.getElementById('inputDistrict').value = ext.district || '';
+        document.getElementById('inputRoadName').value = ext.roadName || '';
+        document.getElementById('inputStartLoc').value = ext.startLoc || '';
+        document.getElementById('inputEndLoc').value = ext.endLoc || '';
+        document.getElementById('inputRoadLevel').value = ext.roadLevel || '';
+        document.getElementById('inputLength').value = ext.length || '';
+
+        document.getElementById('btnEditShape').disabled = false;
+        document.getElementById('btnDelete').disabled = false;
+        document.getElementById('btnDeselect').disabled = false;
+        closeCurrentEditor();
+    }
+
+    function deselectPolyline() {
+        if (selectedPolyline) {
+            selectedPolyline.setOptions({ strokeColor: '#1e88e5', strokeWeight: 6 });
+            selectedPolyline = null;
+        }
+        document.getElementById('formArea').style.display = 'none';
+        document.getElementById('btnEditShape').disabled = true;
+        document.getElementById('btnDelete').disabled = true;
+        document.getElementById('btnDeselect').disabled = true;
+        closeCurrentEditor();
+    }
+
+    function updateProperty(key, value) {
+        if (!selectedPolyline) return;
+        const ext = selectedPolyline.getExtData() || {};
+        ext[key] = value;
+        selectedPolyline.setExtData(ext);
+        if (key === 'roadName' || key === 'roadId') {
+            createOrUpdateLabel(selectedPolyline);
+        }
+    }
+
+    // ================= 编辑形状 =================
+    function toggleEditShape() {
+        if (!selectedPolyline) return;
+        if (currentEditor) {
+            closeCurrentEditor();
+        } else {
+            currentEditor = new AMap.PolylineEditor(map, selectedPolyline);
+            currentEditor.open();
+            // 编辑形状时禁用地图拖拽与双击缩放，避免拖动节点时地图跟着移动
+            map.setStatus({ dragEnable: false, doubleClickZoom: false });
+            currentEditor.on('adjust', () => calculateAndSetLength(selectedPolyline));
+            currentEditor.on('end', () => {
+                calculateAndSetLength(selectedPolyline);
+                createOrUpdateLabel(selectedPolyline);
+                document.getElementById('infoText').textContent = '形状编辑完成，长度已更新。';
+            });
+            document.getElementById('btnEditShape').textContent = '结束编辑';
+            document.getElementById('infoText').textContent = '形状编辑模式：拖拽任意节点（含起点、终点）调整路线，长度实时更新。';
+        }
+    }
+
+    function closeCurrentEditor() {
+        if (currentEditor) {
+            if (selectedPolyline) {
+                calculateAndSetLength(selectedPolyline);
+                createOrUpdateLabel(selectedPolyline);
+            }
+            currentEditor.close();
+            currentEditor = null;
+            // 退出编辑模式后恢复地图拖拽与双击缩放
+            map.setStatus({ dragEnable: true, doubleClickZoom: true });
+            document.getElementById('btnEditShape').textContent = '编辑形状';
+        }
+    }
+
+    // ================= 删除选中 =================
+    function deleteSelected() {
+        if (!selectedPolyline) return;
+        if (!confirm('确定删除选中的路段吗？')) return;
+        closeCurrentEditor();
+        removeLabel(selectedPolyline);
+        map.remove(selectedPolyline);
+        allPolylines = allPolylines.filter(p => p !== selectedPolyline);
+        selectedPolyline = null;
+        document.getElementById('formArea').style.display = 'none';
+        document.getElementById('btnEditShape').disabled = true;
+        document.getElementById('btnDelete').disabled = true;
+        document.getElementById('btnDeselect').disabled = true;
+        document.getElementById('infoText').textContent = '路段已删除。';
+    }
+
+    // ================= 地图空白点击取消选中 =================
+    map.on('click', e => {
+        if (isDrawing || isImporting) return;
+        if (e.target && e.target.CLASS_NAME === 'AMap.Polyline') return;
+        if (!selectedPolyline) return;
+        deselectPolyline();
+        document.getElementById('infoText').textContent = '已取消选中。';
+    });
+
+    // ================= 导出 GeoJSON =================
+    function exportGeoJSON() {
+        if (allPolylines.length === 0) { alert('没有可导出的路段数据。'); return; }
+        const features = allPolylines.map(polyline => {
+            const path = polyline.getPath();
+            const coordinates = path.map(lnglat => [lnglat.getLng(), lnglat.getLat()]);
+            if (coordinates.length < 2) return null;
+            return {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates },
+                properties: polyline.getExtData() || {}
+            };
+        }).filter(f => f !== null);
+        const geojson = { type: 'FeatureCollection', features };
+        const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `road_segments_${new Date().getTime()}.geojson`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        document.getElementById('infoText').textContent = `已导出 ${features.length} 条路段（含自动计算的长度）。`;
+    }
+
+    // ================= 导入 GeoJSON =================
+    function triggerImport() { document.getElementById('fileInput').click(); }
+
+    function importGeoJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const geojson = JSON.parse(e.target.result);
+                loadGeoJSONToMap(geojson);
+            } catch (err) {
+                alert('文件解析失败，请确认是有效的 GeoJSON 文件。\n错误信息：' + err.message);
+            } finally { event.target.value = ''; }
+        };
+        reader.readAsText(file);
+    }
+
+    function loadGeoJSONToMap(geojson) {
+        let features = [];
+        if (geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
+            features = geojson.features;
+        } else if (geojson.type === 'Feature') {
+            features = [geojson];
+        } else {
+            alert('不支持的 GeoJSON 类型。请提供 Feature 或 FeatureCollection。');
+            return;
+        }
+        let importedCount = 0, skippedCount = 0;
+        features.forEach(feature => {
+            if (!feature.geometry) { skippedCount++; return; }
+            const geomType = feature.geometry.type;
+            const props = feature.properties || {};
+            const extData = {
+                roadId: props.roadId || props.序号 || props.id || '',
+                district: props.district || props.城区 || '',
+                roadName: props.roadName || props.道路名称 || props.路段名 || props.name || '',
+                startLoc: props.startLoc || props.起点 || props.起始位置 || '',
+                endLoc: props.endLoc || props.终点 || props.终止位置 || '',
+                roadLevel: props.roadLevel || props.道路等级 || '',
+                length: props.length || props.里程 || props.长度 || ''
+            };
+            if (geomType === 'LineString') {
+                const path = feature.geometry.coordinates.map(c => new AMap.LngLat(c[0], c[1]));
+                if (path.length >= 2) { addImportedPolyline(path, extData); importedCount++; }
+                else skippedCount++;
+            } else if (geomType === 'MultiLineString') {
+                feature.geometry.coordinates.forEach(coords => {
+                    const path = coords.map(c => new AMap.LngLat(c[0], c[1]));
+                    if (path.length >= 2) { addImportedPolyline(path, { ...extData }); importedCount++; }
+                    else skippedCount++;
+                });
+            } else skippedCount++;
+        });
+        document.getElementById('infoText').textContent =
+            `导入完成：成功 ${importedCount} 条，跳过 ${skippedCount} 条（非线要素或坐标不足）。`;
+        if (importedCount > 0) map.setFitView(null, false, [60, 60, 60, 60]);
+        else alert('未导入任何有效路段。请检查文件是否包含 LineString 几何。');
+    }
+
+    function addImportedPolyline(path, extData) {
+        const polyline = new AMap.Polyline({
+            path, strokeColor: '#1e88e5', strokeWeight: 6, lineJoin: 'round', extData
+        });
+        polyline.on('click', ev => { ev.originEvent?.stopPropagation?.(); selectPolyline(polyline); });
+        map.add(polyline);
+        allPolylines.push(polyline);
+        if (!extData.length) calculateAndSetLength(polyline);
+        createOrUpdateLabel(polyline);
+    }
+
+    // ================= CSV 原生解析（不依赖 SheetJS） =================
+    function parseCSV(text) {
+        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim() !== '');
+        if (lines.length < 2) return [];
+        const headers = splitCSVLine(lines[0]);
+        const result = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cells = splitCSVLine(lines[i]);
+            const row = {};
+            headers.forEach((h, idx) => { row[h.trim()] = (cells[idx] || '').trim(); });
+            result.push(row);
+        }
+        return result;
+    }
+
+    function splitCSVLine(line) {
+        const out = [];
+        let cur = '', inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (inQuotes) {
+                if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+                else if (ch === '"') { inQuotes = false; }
+                else cur += ch;
+            } else {
+                if (ch === '"') inQuotes = true;
+                else if (ch === ',') { out.push(cur); cur = ''; }
+                else cur += ch;
+            }
+        }
+        out.push(cur);
+        return out;
+    }
+
+    // ================= 导入 Excel/CSV =================
+    function triggerTableImport() {
+        if (isImporting) return;
+        document.getElementById('tableFileInput').click();
+    }
+
+    function importTable(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // 库保护：非 CSV 文件必须依赖 SheetJS
+        const isCSV = file.name.toLowerCase().endsWith('.csv');
+        if (!isCSV && typeof XLSX === 'undefined') {
+            alert('Excel 解析库（SheetJS）未加载成功，请检查网络或更换 CDN 后刷新页面。\n如果只是导入 CSV，可直接选择 .csv 文件，无需该库。');
+            event.target.value = '';
+            return;
+        }
+
+        isImporting = true;
+        document.getElementById('btnImportTable').disabled = true;
+        document.getElementById('infoText').textContent = '正在读取表格...';
+
+        const reader = new FileReader();
+
+        reader.onload = async function(e) {
+            try {
+                let rows;
+
+                if (isCSV) {
+                    // CSV 走原生解析，彻底摆脱 SheetJS
+                    let text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+                    // 去除 BOM
+                    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                    rows = parseCSV(text);
+                } else {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    rows = XLSX.utils.sheet_to_json(sheet);
+                }
+
+                if (!rows.length) { alert('表格为空。'); cleanupImport(); return; }
+
+                const first = rows[0];
+                const seqKey      = findKey(first, ['序号', 'roadId', 'id']);
+                const districtKey = findKey(first, ['城区', 'district']);
+                const nameKey     = findKey(first, ['道路名称', '路段名', 'roadName', 'name']);
+                const startKey    = findKey(first, ['起点', '起始位置', 'startLoc', 'start']);
+                const endKey      = findKey(first, ['终点', '终止位置', 'endLoc', 'end']);
+                const levelKey    = findKey(first, ['道路等级', 'roadLevel', 'level']);
+                const mileageKey  = findKey(first, ['里程(公里)', '里程（公里）', '里程', 'length', '里程(km)']);
+
+                if (!startKey || !endKey) {
+                    alert('未识别到“起点”或“终点”列，请检查表头。');
+                    cleanupImport(); return;
+                }
+
+                const jobs = [];
+                rows.forEach((row, idx) => {
+                    const district = districtKey ? String(row[districtKey] || '').trim() : '';
+                    const startAddr = row[startKey];
+                    const endAddr = row[endKey];
+                    const roadName = row[nameKey];
+
+                    const buildFullAddr = (addr) => {
+                        let a = String(addr || '').trim();
+                        if (!a) return '';
+                        if (district && !/区|县|市/.test(a)) {
+                            a = district + a;
+                        }
+                        return a;
+                    };
+
+                    const fullStart = buildFullAddr(roadName + '与' + startAddr+ '交叉口');
+                    const fullEnd = buildFullAddr(roadName + '与' + endAddr+ '交叉口');
+                    if (fullStart) jobs.push({ rowIdx: idx, type: 'start', address: fullStart });
+                    if (fullEnd) jobs.push({ rowIdx: idx, type: 'end', address: fullEnd });
+                });
+
+                if (!jobs.length) { alert('未找到有效的起止地址。'); cleanupImport(); return; }
+
+                const total = jobs.length;
+                let processed = 0;
+                const progressContainer = document.getElementById('progressContainer');
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                progressContainer.style.display = 'block';
+                progressBar.style.width = '0%';
+                progressText.textContent = `正在地理编码 0 / ${total}`;
+                document.getElementById('infoText').textContent = '地理编码中，请稍候...';
+
+                const resultMap = {};
+                const BATCH_SIZE = 10;
+
+                for (let i = 0; i < jobs.length; i += BATCH_SIZE) {
+                    const batch = jobs.slice(i, i + BATCH_SIZE);
+                    const addresses = batch.map(j => j.address);
+                    console.log(addresses);
+                    await geocodeBatch(addresses).then(results => {
+                        batch.forEach((job, k) => {
+                            const loc = results[k];
+                            if (!loc) return;
+                            if (!resultMap[job.rowIdx]) resultMap[job.rowIdx] = {};
+                            resultMap[job.rowIdx][job.type] = loc;
+                        });
+                    });
+
+                    processed += batch.length;
+                    const percent = Math.round(processed / total * 100);
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = `正在地理编码 ${processed} / ${total}（${percent}%）`;
+
+                    if (i + BATCH_SIZE < jobs.length) await sleep(200);
+                }
+
+                progressBar.style.width = '100%';
+                progressText.textContent = '地理编码完成，正在绘制路段...';
+                let success = 0, fail = 0;
+
+                rows.forEach((row, idx) => {
+                    const coords = resultMap[idx];
+                    if (!coords || !coords.start || !coords.end) { fail++; return; }
+
+                    let lengthMeters = '';
+                    if (mileageKey && row[mileageKey] !== undefined && row[mileageKey] !== '') {
+                        const km = parseFloat(row[mileageKey]);
+                        if (!isNaN(km)) {
+                            lengthMeters = (km * 1000).toFixed(2);
+                        }
+                    }
+
+                    const polyline = new AMap.Polyline({
+                        path: [coords.start, coords.end],
+                        strokeColor: '#1e88e5', strokeWeight: 6, lineJoin: 'round',
+                        extData: {
+                            roadId: seqKey ? String(row[seqKey] ?? '') : '',
+                            district: districtKey ? String(row[districtKey] || '') : '',
+                            roadName: nameKey ? String(row[nameKey] || '') : '',
+                            startLoc: String(row[startKey] || ''),
+                            endLoc: String(row[endKey] || ''),
+                            roadLevel: levelKey ? String(row[levelKey] || '') : '',
+                            length: lengthMeters
+                        }
+                    });
+                    polyline.on('click', ev => { ev.originEvent?.stopPropagation?.(); selectPolyline(polyline); });
+                    map.add(polyline);
+                    allPolylines.push(polyline);
+
+                    if (!lengthMeters) {
+                        calculateAndSetLength(polyline);
+                    } else {
+                        polyline.setExtData({ ...polyline.getExtData(), length: lengthMeters });
+                    }
+
+                    createOrUpdateLabel(polyline);
+                    success++;
+                });
+
+                if (success > 0) map.setFitView(null, false, [60, 60, 60, 60]);
+                document.getElementById('infoText').textContent =
+                    `表格导入完成：成功 ${success} 条，失败 ${fail} 条（地址解析失败或坐标缺失）。`;
+                progressText.textContent = `完成：成功 ${success} 条，失败 ${fail} 条`;
+                setTimeout(() => { progressContainer.style.display = 'none'; }, 2000);
+
+            } catch (err) {
+                alert('表格解析失败：' + err.message);
+                document.getElementById('progressContainer').style.display = 'none';
+            } finally {
+                cleanupImport();
+                event.target.value = '';
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+
+    function cleanupImport() {
+        isImporting = false;
+        document.getElementById('btnImportTable').disabled = false;
+    }
+
+    function geocodeBatch(addresses) {
+        return new Promise(resolve => {
+            if (!geocoder) { resolve(addresses.map({city: '北京'})); return; }
+
+            let settled = false;
+            const finish = (out) => {
+                if (settled) return;
+                settled = true;
+                resolve(out);
+            };
+
+            // 超时兜底：8 秒无响应自动返回全 null，防止进度条永久卡住
+            const timeoutId = setTimeout(() => {
+                finish(addresses.map(() => null));
+            }, 8000);
+
+            geocoder.getLocation(addresses, { batch: true }, (status, result) => {
+                clearTimeout(timeoutId);
+                if (status !== 'complete' || !result.geocodes) {
+                    finish(addresses.map(() => null));
+                    return;
+                }
+                const out = result.geocodes.map(g => g.location ? g.location : null);
+                finish(out);
+            });
+        });
+    }
+
+    function findKey(obj, candidates) {
+        for (const c of candidates) if (obj[c] !== undefined) return c;
+        return null;
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ================= 道路搜索 =================
+    function searchRoad() {
+        const keyword = document.getElementById('searchInput').value.trim();
+        if (!keyword) {
+            alert('请输入道路名称');
+            return;
+        }
+        if (!placeSearch) {
+            alert('搜索服务尚未加载完成，请稍候再试');
+            return;
+        }
+
+        // 清除之前的搜索结果
+        clearSearchMarkers();
+        document.getElementById('btnClearSearch').style.display = 'inline-block';
+        document.getElementById('searchResultInfo').textContent = '搜索中...';
+
+        placeSearch.search(keyword, (status, result) => {
+            if (status !== 'complete' || !result.poiList || !result.poiList.pois || result.poiList.pois.length === 0) {
+                document.getElementById('searchResultInfo').textContent = '未找到匹配的道路';
+                return;
+            }
+
+            const pois = result.poiList.pois;
+            const bounds = new AMap.Bounds();
+
+            pois.forEach((poi, index) => {
+                const lngLat = new AMap.LngLat(poi.location.lng, poi.location.lat);
+                bounds.extend(lngLat);
+
+                const marker = new AMap.Marker({
+                    position: lngLat,
+                    title: poi.name,
+                    label: {
+                        content: `<div style="background:#1e88e5;color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;border:1px solid #fff;">${poi.name}</div>`,
+                        direction: 'top'
+                    },
+                    zIndex: 120 + index
+                });
+
+                // 点击 marker 显示详情
+                marker.on('click', () => {
+                    const addr = poi.address || poi.pname + poi.cityname + (poi.adname || '') + poi.name;
+                    const level = poi.type || '';
+                    showSearchInfoWindow(lngLat, poi.name, addr, level);
+                });
+
+                map.add(marker);
+                searchMarkers.push(marker);
+            });
+
+            // 缩放到所有搜索结果范围
+            if (pois.length === 1) {
+                map.setZoomAndCenter(16, pois[0].location);
+            } else {
+                map.setBounds(bounds, false, [60, 60, 60, 60]);
+            }
+
+            document.getElementById('searchResultInfo').textContent = `找到 ${pois.length} 个结果，点击标记查看详情`;
+        });
+    }
+
+    function showSearchInfoWindow(position, name, address, type) {
+        if (searchInfoWindow) searchInfoWindow.close();
+
+        const content = `
+            <div style="padding: 10px 12px; min-width: 200px; font-size: 13px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1e88e5; margin-bottom: 6px;">${name}</div>
+                <div style="color: #666; margin-bottom: 4px;"><span style="color: #999;">地址：</span>${address}</div>
+                <div style="color: #666;"><span style="color: #999;">类型：</span>${type}</div>
+                <div style="margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;">
+                    <button onclick="createSegmentFromSearch('${name.replace(/'/g, "\\'")}', ${position.getLng()}, ${position.getLat()})"
+                            style="padding:4px 10px;font-size:12px;background:#2e7d32;color:#fff;border:none;border-radius:3px;cursor:pointer;">
+                        从这里开始绘制路段
+                    </button>
+                </div>
+            </div>
+        `;
+
+        searchInfoWindow = new AMap.InfoWindow({
+            content: content,
+            offset: new AMap.Pixel(0, -30),
+            closeWhenClickMap: true
+        });
+        searchInfoWindow.open(map, position);
+    }
+
+    function createSegmentFromSearch(roadName, lng, lat) {
+        if (searchInfoWindow) searchInfoWindow.close();
+        document.getElementById('searchInput').value = roadName;
+        // 清除搜索 marker，开始绘制
+        clearSearchMarkers();
+        document.getElementById('searchResultInfo').textContent = '';
+        document.getElementById('btnClearSearch').style.display = 'none';
+        // 把地图中心移到搜索结果位置
+        map.setZoomAndCenter(15, [lng, lat]);
+        startDraw();
+        document.getElementById('infoText').textContent = `已定位到「${roadName}」，开始绘制路段。单击地图添加节点，双击结束。`;
+    }
+
+    function clearSearch() {
+        clearSearchMarkers();
+        if (searchInfoWindow) { searchInfoWindow.close(); searchInfoWindow = null; }
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchResultInfo').textContent = '';
+        document.getElementById('btnClearSearch').style.display = 'none';
+    }
+
+    function clearSearchMarkers() {
+        searchMarkers.forEach(m => map.remove(m));
+        searchMarkers = [];
+    }
+</script>
+</body>
+</html>
