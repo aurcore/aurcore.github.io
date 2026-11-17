@@ -603,7 +603,8 @@
 
     function addImportedPolyline(path, extData) {
         const polyline = new AMap.Polyline({
-            path, strokeColor: '#1e88e5', strokeWeight: 6, lineJoin: 'round', extData
+            path, strokeColor: '#1e88e5', strokeWeight: 6, lineJoin: 'round',
+            showDir: true, dirColor: '#ffffff', extData
         });
         polyline.on('click', ev => { ev.originEvent?.stopPropagation?.(); selectPolyline(polyline); });
         map.add(polyline);
