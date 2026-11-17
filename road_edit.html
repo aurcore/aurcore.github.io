@@ -7,8 +7,28 @@
     <style>
         html, body { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
         #container { height: 100%; width: 100%; }
+	.ctrl {
+		position: absolute; bottom: 30px; right: 30px;
+		display: flex; flex-direction: column; gap: 6px;
+		z-index: 999;
+	}
+	.map-btn {
+		width: 36px; height: 36px;
+		padding: 0; margin: 0;
+		border-radius: 4px;
+		background: #fff;
+		border: 1px solid #d0d0d0;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+		color: #333;
+		cursor: pointer;
+		display: flex; align-items: center; justify-content: center;
+		transition: background 0.15s, border-color 0.15s;
+	}
+	.map-btn:hover { background: #f5f5f5; border-color: #1e88e5; color: #1e88e5; }
+	.map-btn:active { background: #e8e8e8; }
+	.map-btn:disabled { background: #eee; color: #bbb; cursor: not-allowed; border-color: #ddd; }
         .panel {
-            position: absolute; top: 20px; right: 20px; width: 340px;
+            position: absolute; top: 20px; right: 50px; width: 340px;
             background: white; border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;
             max-height: 90vh; overflow-y: auto;
@@ -54,7 +74,7 @@
             securityJsCode: '73d7f93370c36afe4f8b111a98f929c0',
         };
     </script>
-    <script src="https://webapi.amap.com/maps?v=2.0&key=5a46888a5d15366d4f7c82c0dd566317&plugin=AMap.PolylineEditor,AMap.GeometryUtil,AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=5a46888a5d15366d4f7c82c0dd566317&plugin=AMap.PolylineEditor,AMap.GeometryUtil,AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete,AMap.Geolocation"></script>
     <!-- SheetJS：优先 bootcdn，失败自动回退 jsDelivr -->
     <script src="https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
@@ -68,10 +88,19 @@
 </head>
 <body>
 <div id="container"></div>
+<div class="ctrl">
+    <button id="btnLocate" class="map-btn" onclick="locateMe()" title="定位到我的当前位置">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-crosshair"><circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line></svg>
+    </button>
+    <button id="btnMapStyle" class="map-btn" onclick="toggleMapStyle()" title="切换底图">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-layers"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+    </button>
+</div>
 
 <div class="panel" id="sidePanel">
     <div class="panel-header" onclick="togglePanel()">
         <h3>路段管理</h3>
+	
         <button class="panel-toggle" id="btnPanelToggle" title="收起/展开面板">▾</button>
     </div>
     <div class="panel-body">
@@ -98,7 +127,7 @@
         <button id="btnDeselect" class="secondary" onclick="deselectPolyline()" disabled>取消选中</button>
         <button id="btnDelete" class="danger" onclick="deleteSelected()" disabled>删除选中</button>
         <button id="btnToggleLabel" class="secondary" onclick="toggleLabels()">隐藏标签</button>
-        <button id="btnMapStyle" class="secondary" onclick="toggleMapStyle()">切换标准图</button>
+        
     </div>
     <div class="btn-group">
         <button class="success" onclick="triggerImport()">导入 GeoJSON</button>
@@ -161,10 +190,12 @@
     const map = new AMap.Map('container', {
         zoom: 12,
         center: [116.397428, 39.90923],
-        layers: [satellite, roadNet], //地图图层的数组
+        //layers: [satellite, roadNet], //地图图层的数组
         mapStyle: 'amap://styles/satellite',
         viewMode: '2D'
     });
+	map.addLayer(roadNet);
+	map.addLayer(satellite);
 
     let geocoder = null;
     AMap.plugin('AMap.Geocoder', () => {
@@ -176,11 +207,126 @@
     AMap.plugin('AMap.PlaceSearch', () => {
         placeSearch = new AMap.PlaceSearch({
             city: '北京市',
-            pageSize: 20,
+            pageSize: 1,
             pageIndex: 1,
-            extensions: 'base'
+            extensions: 'base',
+		showCover:false
         });
     });
+
+    // ================= GPS + 网络定位 =================
+    let geolocation = null;
+    let locateMarker = null;       // 蓝色定位圆点
+    let locateAccuracyCircle = null; // 精度圈
+    let locateHeadingLine = null;    // 方向指示线（可选）
+
+    // 初始化定位服务
+    AMap.plugin('AMap.Geolocation', () => {
+        geolocation = new AMap.Geolocation({
+            enableHighAccuracy: true,       // 启用高精度定位（优先 GPS）
+            timeout: 10000,                 // 定位超时 10 秒
+            zoomToAccuracy: false,          // 手动控制缩放（关闭自动）
+            buttonPosition: 'RB',
+            showButton: false,              // 不显示默认定位按钮
+            showMarker: false,              // 不显示默认 marker（我们自己画）
+            showCircle: false,              // 不显示默认精度圈（我们自己画）
+            useNative: false,               // 关闭浏览器原生定位，用高德 SDK 融合定位
+            convert: true                   // 显式开启坐标转换 → GCJ-02（地图坐标系）
+        });
+        map.addControl(geolocation);
+    });
+
+    function locateMe() {
+        const btn = document.getElementById('btnLocate');
+        if (!geolocation) {
+            alert('定位服务尚未加载完成，请稍候再试');
+            return;
+        }
+        btn.disabled = true;
+        btn.title = '定位中...';
+
+        geolocation.getCurrentPosition((status, result) => {
+            btn.disabled = false;
+            btn.title = '定位到我的当前位置';
+
+            if (status === 'complete') {
+                handleLocateSuccess(result);
+            } else {
+                handleLocateFail(status);
+            }
+        });
+    }
+
+    function handleLocateSuccess(result) {
+        const lnglat = result.position;
+        const accuracy = result.accuracy;
+
+        // 更新或创建精度圈
+        if (locateAccuracyCircle) {
+            locateAccuracyCircle.setCenter(lnglat);
+            locateAccuracyCircle.setRadius(Math.max(accuracy, 5));
+        } else {
+            locateAccuracyCircle = new AMap.Circle({
+                center: lnglat,
+                radius: Math.max(accuracy, 5),
+                strokeColor: '#1e88e5', strokeWeight: 1, strokeOpacity: 0.5,
+                fillColor: '#1e88e5', fillOpacity: 0.15, zIndex: 50
+            });
+            map.add(locateAccuracyCircle);
+        }
+
+        // 更新或创建定位 marker
+        if (locateMarker) {
+            locateMarker.setPosition(lnglat);
+        } else {
+            locateMarker = new AMap.CircleMarker({
+                center: lnglat, radius: 10,
+                fillColor: '#1e88e5', fillOpacity: 1,
+                strokeColor: '#ffffff', strokeWeight: 3,
+                zIndex: 100
+            });
+            map.add(locateMarker);
+        }
+
+        // 直接移动到定位点并缩放
+        let zoomLevel = 16;
+        if (accuracy > 1000) zoomLevel = 12;
+        else if (accuracy > 500) zoomLevel = 13;
+        else if (accuracy > 200) zoomLevel = 14;
+        else if (accuracy > 50) zoomLevel = 15;
+        map.setZoomAndCenter(zoomLevel, lnglat);
+
+        // 底部状态栏显示结果（不弹窗）
+        const typeText = {
+            gps: 'GPS', wifi: 'Wi-Fi', cellular: '基站',
+            sdk: 'SDK', ip: 'IP（精度低）'
+        }[result.locationType] || '混合';
+        document.getElementById('infoText').textContent =
+            '已定位（' + typeText + '，精度约 ' + Math.round(accuracy) + ' 米）';
+    }
+
+    function handleLocateFail(status) {
+        let msg = '定位失败';
+        switch (status) {
+            case 'PERMISSION_DENIED':
+                msg = '定位权限被拒绝。请在浏览器设置中允许定位权限，或确保使用 HTTPS / localhost 访问。';
+                break;
+            case 'POSITION_UNAVAILABLE':
+                msg = '无法获取位置信息（可能是室内或信号弱）。请检查设备 GPS 或网络连接。';
+                break;
+            case 'TIMEOUT':
+                msg = '定位请求超时。请检查网络后重试。';
+                break;
+            case 'NOT_SUPPORTED':
+                msg = '当前浏览器/设备不支持定位功能。';
+                break;
+            case 'FAILED':
+                msg = '定位失败，请稍后重试。';
+                break;
+        }
+        alert(msg);
+        document.getElementById('infoText').textContent = '定位失败：' + msg;
+    }
 
     // ================= 全局状态 =================
     let allPolylines = [];
@@ -279,12 +425,15 @@
     let isSatellite = true;
     function toggleMapStyle() {
         isSatellite = !isSatellite;
+        const btn = document.getElementById('btnMapStyle');
         if (isSatellite) {
-            map.setMapStyle('amap://styles/satellite');
-            document.getElementById('btnMapStyle').textContent = '切换标准图';
+            satellite.show();
+            roadNet.show();
+            btn.title = '切换到标准图';
         } else {
-            map.setMapStyle('amap://styles/normal');
-            document.getElementById('btnMapStyle').textContent = '切换卫星图';
+            satellite.hide();
+            roadNet.hide();
+            btn.title = '切换到卫星图';
         }
     }
 
@@ -451,11 +600,14 @@
     function cleanupDrawListeners() {
         map.off('click', onMapClickDraw);
         map.off('dblclick', onMapDblClickFinish);
+        // map.off('rightclick', onMapRightClickFinish);
         map.off('mousemove', onMapMouseMove);
     }
 
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && isDrawing) cancelDraw();
+        if (e.key === 'Escape' && isDrawing) {
+            cancelDraw();
+        }
     });
 
     // ================= 选中 / 取消选中 =================
@@ -466,6 +618,7 @@
         selectedPolyline = polyline;
         polyline.setOptions({ strokeColor: '#ff6f00', strokeWeight: 8 });
 
+        //
         document.getElementById('formArea').style.display = 'block';
         const ext = polyline.getExtData() || {};
         document.getElementById('inputRoadId').value = ext.roadId || '';
@@ -480,6 +633,7 @@
         document.getElementById('btnDelete').disabled = false;
         document.getElementById('btnDeselect').disabled = false;
         closeCurrentEditor();
+        map.on('rightclick', onMapRightClickFinish);
     }
 
     function deselectPolyline() {
@@ -487,6 +641,7 @@
             selectedPolyline.setOptions({ strokeColor: '#1e88e5', strokeWeight: 6 });
             selectedPolyline = null;
         }
+        cleanupSelectListeners();
         document.getElementById('formArea').style.display = 'none';
         document.getElementById('btnEditShape').disabled = true;
         document.getElementById('btnDelete').disabled = true;
@@ -502,6 +657,15 @@
         if (key === 'roadName' || key === 'roadId') {
             createOrUpdateLabel(selectedPolyline);
         }
+    }
+    function onMapRightClickFinish(e) {
+        if (!selectedPolyline) return;
+        // 右键直接结束绘制（不再添加节点）
+        if (e && e.originEvent) e.originEvent.preventDefault?.();
+        closeCurrentEditor();
+    }
+    function cleanupSelectListeners() {
+        map.off('rightclick', onMapRightClickFinish);
     }
 
     // ================= 编辑形状 =================
@@ -544,6 +708,7 @@
         if (!selectedPolyline) return;
         if (!confirm('确定删除选中的路段吗？')) return;
         closeCurrentEditor();
+        cleanupSelectListeners()
         removeLabel(selectedPolyline);
         map.remove(selectedPolyline);
         allPolylines = allPolylines.filter(p => p !== selectedPolyline);
@@ -966,7 +1131,7 @@
 
             // 缩放到所有搜索结果范围
             if (pois.length === 1) {
-                map.setZoomAndCenter(16, pois[0].location);
+                map.setZoomAndCenter(18, pois[0].location);
             } else {
                 map.setBounds(bounds, false, [60, 60, 60, 60]);
             }
